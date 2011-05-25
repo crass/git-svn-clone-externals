@@ -95,42 +95,48 @@ function is_excluded()
     return
 }
 
+function do_main() {
+  git svn show-externals|grep -vE '#|^$'|while read -a words
+  do
+    [ -z "${words[*]}" ] && continue
 
-git svn show-externals|grep -vE '#|^$'|while read -a words
-do
-	[ -z "${words[*]}" ] && continue
+    local_directory="$(echo ${words[0]}|sed 's,^/,,')"
+    revision=""
+    remote_url="${words[1]}"
 
-	local_directory="$(echo ${words[0]}|sed 's,^/,,')"
-	revision=""
-	remote_url="${words[1]}"
+      check_excluded=$(is_excluded $local_directory)
 
-    check_excluded=$(is_excluded $local_directory)
+      if [ $check_excluded -eq 0 ] ; then
+          if [ -n "${words[2]}" ]; then
+              revision="${words[1]}"
+              remote_url="${words[2]}"
+          fi
 
-    if [ $check_excluded -eq 0 ] ; then
-        if [ -n "${words[2]}" ]; then
-            revision="${words[1]}"
-            remote_url="${words[2]}"
-        fi
+          if [ -n "$USE_SSH" ]; then
+              echo "Rewriting url to use SVN+SSH."
+              shopt -s extglob
+              remote_url="${remote_url/+(http|https)/svn+ssh}"
+          fi
 
-        if [ -n "$USE_SSH" ]; then
-            echo "Rewriting url to use SVN+SSH."
-            shopt -s extglob
-            remote_url="${remote_url/+(http|https)/svn+ssh}"
-        fi
+          [ -z "${remote_url}" ] && continue
 
-        [ -z "${remote_url}" ] && continue
+          export local_directory revision remote_url
 
-        export local_directory revision remote_url
+          echo "$local_directory -> $remote_url"
 
-        echo "$local_directory -> $remote_url"
+          dir=`dirname $local_directory`
+          [ -d ".git_externals/$dir" ] || mkdir -p ".git_externals/$dir"
 
-        dir=`dirname $local_directory`
-        [ -d ".git_externals/$dir" ] || mkdir -p ".git_externals/$dir"
+          do_clone "$revision" "$remote_url" "$local_directory" || exit
+          do_link "$local_directory"
+          do_excludes "$local_directory"
+          pushd $local_directory
+          do_main
+          popd
+      fi
+  done
+}
 
-        do_clone "$revision" "$remote_url" "$local_directory" || exit
-        do_link "$local_directory"
-        do_excludes "$local_directory"
-    fi
+do_main
 
-done
 

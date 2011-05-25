@@ -2,6 +2,7 @@
 
   for dir in `find . -name ".git" | awk '{len = length($1)} {val = substr($1,1,len-4)}{print val}'`; do
         pushd $dir
+        echo "Entered " $dir " and updating."
         git svn fetch
         git svn rebase
         popd
