@@ -1,5 +1,16 @@
 #!/bin/bash
 
+ARGLIST=`getopt -n $(basename "$0") 'r' "$@"`
+if [ $? != 0 ] ; then exit 1 ; fi
+eval set -- "$ARGLIST"
+while true; do
+    case "$1" in
+        -r) RECURSIVE=1 ; shift ;;
+        --) shift ; break ;;
+        *) echo "Internal error!" ; exit 1 ;;
+    esac
+done
+
 git_rev_parse=$(git rev-parse --show-cdup)
 if [ "$git_rev_parse" != "" ]; then
 	cd $git_rev_parse
@@ -11,14 +22,21 @@ if [ ! -d $git_root/.git_externals ]; then
 	exit 0
 fi
 
-for dir in $git_root/.git_externals/*; do
+GITDIRS="$git_root/.git_externals/*"
+if [ $RECURSIVE -eq 1 ]; then
+    GITDIRS=`find . -name ".git" -type d | awk '{len = length($1)} {val = substr($1,1,len-4)}{print val}'`
+fi
+
+echo GITDIRS=$GITDIRS
+for dir in $GITDIRS; do
 	external_path=$(echo `basename "$dir"` | sed 's,\.\.\.,/,')
 	echo "=====================" $external_path "====================="
 	if [ -d $dir ]; then
-		cd $dir
+                pushd $dir
+                echo "Entered " $dir " and updating."
 		git svn fetch
 		git svn rebase
-		cd ..
+                popd
 	fi
 	echo ""
 done
